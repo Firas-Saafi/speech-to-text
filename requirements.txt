@@ -1,0 +1,3 @@
+flask
+speech_recognition
+firebase_admin

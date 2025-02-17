@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speech to Text</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+   
+</head>
+<body>
+    <div class="container">
+        <h1>Speech to Text</h1>
+
+        <button id="start-btn" class="btn">Start</button>
+
+        <div id="wave" class="wave">
+            <div id="wave-animation" class="inner-wave"></div>
+        </div>
+
+        <div id="transcription" class="transcription">
+            <p>Transcription will appear here...</p>
+        </div>
+
+        <div id="error-message" class="error"></div>
+    </div>
+
+    <script>
+const startBtn = document.getElementById('start-btn');
+const waveAnimation = document.getElementById('wave-animation');
+const transcriptionElement = document.getElementById('transcription');
+const errorMessage = document.getElementById('error-message');
+let isListening = false;
+let recognition;
+let finalTranscription = ''; 
+let interimTranscription = ''; 
+let mediaRecorder;
+let audioChunks = [];
+
+// Initialize Web Speech API
+if (!('webkitSpeechRecognition' in window)) {
+    errorMessage.textContent = 'Speech recognition is not supported in this browser.';
+}
+
+startBtn.addEventListener('click', toggleListening);
+
+function toggleListening() {
+    if (isListening) {
+        stopListening();
+    } else {
+        startListening();
+    }
+}
+
+async function startListening() {
+    isListening = true;
+    startBtn.textContent = 'Stop';
+    errorMessage.textContent = '';
+
+    // Reset transcriptions 
+    finalTranscription = '';
+    interimTranscription = '';
+    transcriptionElement.textContent = '';
+
+    // Initialize speech recognition
+    recognition = new webkitSpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = function () {
+        waveAnimation.style.animationPlayState = 'running';
+    };
+
+    recognition.onend = function () {
+        stopListening();
+    };
+
+    recognition.onresult = function (event) {
+        interimTranscription = ''; 
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            if (event.results[i].isFinal) {
+                finalTranscription += event.results[i][0].transcript + ' ';
+            } else {
+                interimTranscription += event.results[i][0].transcript;
+            }
+        }
+        transcriptionElement.textContent = finalTranscription + interimTranscription;
+    };
+
+    recognition.start();
+
+    // Start audio recording
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = function (event) {
+        audioChunks.push(event.data);
+    };
+    mediaRecorder.start();
+}
+
+function stopListening() {
+    isListening = false;
+    startBtn.textContent = 'Start';
+    waveAnimation.style.animationPlayState = 'paused';
+
+    recognition.stop();
+
+    // Stop audio recording
+    mediaRecorder.stop();
+    mediaRecorder.onstop = function () {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+        saveAudioToServer(audioBlob);
+        audioChunks = [];
+    };
+
+    saveTranscriptionToServer(finalTranscription.trim());
+}
+
+function saveTranscriptionToServer(transcription) {
+    const formData = new FormData();
+    formData.append('transcription', transcription);
+
+    fetch('/save_transcription', {
+        method: 'POST',
+        body: formData
+    }).then(response => response.text())
+      .then(data => {
+          console.log('Transcription saved:', data);
+          transcriptionElement.textContent = 'Transcription saved successfully.';
+      }).catch(err => {
+          console.error('Error saving transcription:', err);
+          transcriptionElement.textContent = 'Error saving transcription.';
+      });
+}
+
+function saveAudioToServer(audioBlob) {
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'audio.wav'); // Ensure the file is named with .wav extension
+
+    fetch('/save_audio', {
+        method: 'POST',
+        body: formData
+    }).then(response => response.json())
+      .then(data => {
+          console.log('Audio saved:', data);
+      }).catch(err => {
+          console.error('Error saving audio:', err);
+      });
+}
+    </script>
+    
+    
+</body>
+</html>
+
+
+
