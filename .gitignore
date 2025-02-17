@@ -1,4 +1,10 @@
-audio/
-credentials/
-transcription/
+audio/*
+!audio/.gitkeep
+
+credentials/*
+!credentials/.gitkeep
+
+transcription/*
+!transcription/.gitkeep
+
 venv/
